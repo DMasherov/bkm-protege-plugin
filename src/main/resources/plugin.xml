@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?eclipse version="3.0"?>
+
+<plugin>
+
+    <extension id="menu.file.open_bkm"
+               point="org.protege.editor.core.application.EditorKitMenuAction">
+        <name value="Open BKM..."/>
+        <toolTip value="Open BKM"/>
+        <class value="mpei.bkm.protegeplugin.menu.BKMMenu"/>
+        <path value="org.protege.editor.core.application.menu.FileMenu/SlotAA-F"/>
+        <editorKitId value="any"/>
+        <accelerator value="O"/>
+    </extension>
+
+    
+</plugin>
