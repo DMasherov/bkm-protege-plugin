@@ -42,15 +42,6 @@
         </dependency>
     </dependencies>
 
-    <!-- profiles>
-        <profile>
-            <id>protege-debug</id>
-            <build>
-                <directory>C:\plugin\protege\plugins</directory>
-            </build>
-        </profile>
-    </profiles -->
-
     <build>
 
         <resources>
