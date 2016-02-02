@@ -5,10 +5,14 @@ import mpei.bkm.converters.text2scheme.Text2SchemeContainerConverter;
 import mpei.bkm.model.lss.Attribute;
 import mpei.bkm.model.lss.datatypespecification.datatypes.*;
 import mpei.bkm.model.lss.objectspecification.concept.BKMClass;
+import mpei.bkm.model.lss.objectspecification.concept.BinaryLink;
 import mpei.bkm.model.lss.objectspecification.concept.Concept;
 import mpei.bkm.model.lss.objectspecification.concepttypes.BKMClassType;
 import mpei.bkm.model.lss.objectspecification.concepttypes.ConceptType;
 import mpei.bkm.model.lss.objectspecification.concepttypes.StarConceptType;
+import mpei.bkm.model.lss.objectspecification.intervalrestrictions.AtomRestriction;
+import mpei.bkm.model.lss.objectspecification.intervalrestrictions.IntervalRestriction;
+import mpei.bkm.model.lss.objectspecification.intervalrestrictions.number.*;
 import mpei.bkm.model.structurescheme.Scheme;
 import mpei.bkm.parsing.structurescheme.SchemeContainer;
 import org.apache.commons.lang.enums.*;
@@ -37,7 +41,6 @@ public class BKMMenu extends ProtegeOWLAction {
     public void dispose() throws Exception {
     }
 
-
     static Map<PrimitiveDataType.PRIMITIVEDATATYPE,IRI> bkmPrimitiveMap = new HashMap<PrimitiveDataType.PRIMITIVEDATATYPE, IRI>();
     static {
         bkmPrimitiveMap.put(PrimitiveDataType.PRIMITIVEDATATYPE.String,IRI.create("http://www.w3.org/2001/XMLSchema#string"));
@@ -52,7 +55,8 @@ public class BKMMenu extends ProtegeOWLAction {
         List<OWLAxiom> owlAxioms = new ArrayList<OWLAxiom>();
         Map<OWLObjectProperty,String> classRangesToAdd = new HashMap<OWLObjectProperty, String>();
         Map<String, OWLClass> nameClassMapping = new HashMap<String, OWLClass>();
-        Map<OWLClass, List> cardinalities = new HashMap<OWLClass,List>();
+        Map<OWLClass, List> exactRestrictions = new HashMap<OWLClass,List>();
+        Set<List> linkIntervalRestrictions = new HashSet<List>();
         for (Concept concept : schemeContainer.getScheme().getConceptList()) {
             OWLClass owlClass = new OWLClassImpl(IRI.create("#" + concept.getName()));
             nameClassMapping.put(concept.getName(), owlClass);
@@ -60,7 +64,22 @@ public class BKMMenu extends ProtegeOWLAction {
                     owlClass,Collections.EMPTY_SET
             ));
             owlClassList.add(owlClass);
-            cardinalities.put(owlClass,new ArrayList());
+            exactRestrictions.put(owlClass, new ArrayList());
+            if (concept instanceof BinaryLink) {
+                BinaryLink link = (BinaryLink)concept;
+                String leftName = link.getLeft().getConceptAttribute().getName();
+                OWLObjectProperty left = new OWLObjectPropertyImpl(
+                        IRI.create("#" + link.getName() + "_" + leftName)
+                );
+                linkIntervalRestrictions.add(Arrays.asList(owlClass, left, link.getRestriction().getLeft(), leftName));
+                owlAxioms.add(new OWLDeclarationAxiomImpl(left,Collections.EMPTY_SET));
+                String rightName = link.getRight().getConceptAttribute().getName();
+                OWLObjectProperty right = new OWLObjectPropertyImpl(
+                        IRI.create("#" + link.getName() + "_" + rightName)
+                );
+                owlAxioms.add(new OWLDeclarationAxiomImpl(right,Collections.EMPTY_SET));
+                linkIntervalRestrictions.add(Arrays.asList(owlClass, right, link.getRestriction().getRight(), rightName));
+            }
             for (Attribute attribute : concept.getAttributes()) {
                 if (attribute.getType() instanceof DataType) {
                     OWLDataProperty owlProperty = new OWLDataPropertyImpl(
@@ -83,7 +102,7 @@ public class BKMMenu extends ProtegeOWLAction {
                                 type,
                                 Collections.EMPTY_SET));
 
-                        cardinalities.get(owlClass).addAll(Arrays.asList(owlProperty, type));
+                        exactRestrictions.get(owlClass).addAll(Arrays.asList(owlProperty, type));
                     }
                     if (attribute.getType() instanceof StarDataType &&
                             ((StarDataType) attribute.getType()).getType() instanceof PrimitiveDataType) {
@@ -120,7 +139,7 @@ public class BKMMenu extends ProtegeOWLAction {
                             Collections.EMPTY_SET));
                     if (attribute.getType() instanceof BKMClassType) {
                         classRangesToAdd.put(owlProperty, ((BKMClassType) attribute.getType()).getBKMClass().getName());
-                        cardinalities.get(owlClass).addAll(Arrays.asList(owlProperty, ((BKMClassType) attribute.getType()).getBKMClass().getName()));
+                        exactRestrictions.get(owlClass).addAll(Arrays.asList(owlProperty, ((BKMClassType) attribute.getType()).getBKMClass().getName()));
                     }
                 }
             }
@@ -142,11 +161,13 @@ public class BKMMenu extends ProtegeOWLAction {
                         Collections.EMPTY_SET));
             }
         }
-        for(Map.Entry<OWLClass,List> e: cardinalities.entrySet()) {
+        for(Map.Entry<OWLClass,List> e: exactRestrictions.entrySet()) {
             Set<OWLClassExpression> equiProps = new HashSet<OWLClassExpression>();
             equiProps.add(e.getKey());
             Set<OWLClassExpression> propertyCardinalities = new HashSet<OWLClassExpression>();
             for (int i = 0; i <= (e.getValue()).size() / 2; i+=2) {
+                // i: property
+                // i + 1:class name
                 if (e.getValue().get(i+1) instanceof String) {
                     OWLObjectProperty ope = (OWLObjectProperty) e.getValue().get(i);
                     OWLClass owlClass = nameClassMapping.get(e.getValue().get(i+1));
@@ -160,6 +181,49 @@ public class BKMMenu extends ProtegeOWLAction {
             }
             equiProps.add(new OWLObjectIntersectionOfImpl(propertyCardinalities));
             owlAxioms.add(new OWLEquivalentClassesAxiomImpl(equiProps, Collections.EMPTY_SET));
+        }
+        for(List e: linkIntervalRestrictions) {
+            // 0: owl class (BKM link)
+            // 1: property
+            // 2: BKM Interval restriction
+            // 3: class name
+            Set<OWLClassExpression> equiProps = new HashSet<OWLClassExpression>();
+            equiProps.add((OWLClassExpression) e.get(0));
+            Set<OWLClassExpression> propertyCardinalities = new HashSet<OWLClassExpression>();
+            OWLObjectProperty ope = (OWLObjectProperty) e.get(1);
+            AtomRestriction atomRestriction = (AtomRestriction) e.get(2);
+            OWLClass owlClass = nameClassMapping.get(e.get(3));
+            Integer min = null, max = null;
+            if (atomRestriction instanceof IntervalAtomRestriction) {
+                min = ((IntervalAtomRestriction)atomRestriction).getFrom();
+                max = ((IntervalAtomRestriction)atomRestriction).getTo();
+            }
+            else if (atomRestriction instanceof GTAtomRestriction) {
+                min = ((GTAtomRestriction)atomRestriction).getValue() + 1;
+            }
+            else if (atomRestriction instanceof GEAtomRestriction) {
+                min = ((GTAtomRestriction)atomRestriction).getValue();
+            }
+            else if (atomRestriction instanceof LTAtomRestriction) {
+                max = ((GTAtomRestriction)atomRestriction).getValue() - 1;
+            }
+            else if (atomRestriction instanceof LEAtomRestriction) {
+                max = ((GTAtomRestriction)atomRestriction).getValue() - 1;
+            }
+            else if (atomRestriction instanceof EQAtomRestriction) {
+                Integer exact = ((EQAtomRestriction)atomRestriction).getValue();
+                propertyCardinalities.add(new OWLObjectExactCardinalityImpl(ope, exact, owlClass));
+            }
+            if (min != null) {
+                propertyCardinalities.add(new OWLObjectMinCardinalityImpl(ope, min, owlClass));
+            }
+            if (max != null) {
+                propertyCardinalities.add(new OWLObjectMaxCardinalityImpl(ope, max, owlClass));
+            }
+            if (propertyCardinalities.size() > 0) {
+                equiProps.addAll(propertyCardinalities);
+                owlAxioms.add(new OWLEquivalentClassesAxiomImpl(equiProps, Collections.EMPTY_SET));
+            }
         }
         for (OWLAxiom owlAxiom : owlAxioms) {
             getOWLModelManager().applyChange(new AddAxiom(owlOntology,owlAxiom));
@@ -177,7 +241,10 @@ public class BKMMenu extends ProtegeOWLAction {
                     "    Препод[ФИО:String, Должность:String, Стаж:Integer].\n" +
                     "    Предмет[Назв:String, КоличЧасов:Integer,\n" +
                     "            ВидЗанятия:{лекция,семинар,лаб_занятие},\n" +
-                    "            Отчет:{экзамен,зачет,зач_и_экз}]. END");
+                    "            Отчет:{экзамен,зачет,зач_и_экз}]. " +
+                    "    (Студент СдалЭкзамен Предмет)[Дата:String,Оценка:String, Кому:Препод].\n" +
+                    "    (Студент СдалЗачет(=666,*) Предмет)[Дата:String, Оценка:String, Кому:Препод].\n" +
+                    "END");
 
             IRI filiIRI = IRI.create("http://www.mpei.ru/BKM/" +
                     System.getProperty("user.name")+ "/" +
