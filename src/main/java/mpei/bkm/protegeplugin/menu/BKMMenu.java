@@ -313,8 +313,14 @@ public class BKMMenu extends ProtegeOWLAction {
             IRI filiIRI = IRI.create(("http://www.mpei.ru/BKM/" +
                     System.getProperty("user.name") + "/" +
                     schemeContainer.getScheme().getName()).replace(" ", "_"));
+            OWLOntologyID bkm2OWLOntologyID = new OWLOntologyID(filiIRI);
+            for (OWLOntology owlOntology : getOWLModelManager().getOntologies()) {
+                if (bkm2OWLOntologyID.equals(owlOntology.getOntologyID())) {
+                    getOWLModelManager().removeOntology(owlOntology);
+                }
+            }
             OWLOntology owlOntology = getOWLModelManager().createNewOntology(
-                    new OWLOntologyID(filiIRI),
+                    bkm2OWLOntologyID,
                     filiIRI.toURI());
 
             loadIntoOntology(owlOntology, schemeContainer);
