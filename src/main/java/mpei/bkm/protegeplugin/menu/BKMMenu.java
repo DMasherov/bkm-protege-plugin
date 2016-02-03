@@ -9,20 +9,18 @@ import mpei.bkm.model.lss.objectspecification.concept.BinaryLink;
 import mpei.bkm.model.lss.objectspecification.concept.Concept;
 import mpei.bkm.model.lss.objectspecification.concepttypes.BKMClassType;
 import mpei.bkm.model.lss.objectspecification.concepttypes.ConceptType;
-import mpei.bkm.model.lss.objectspecification.concepttypes.StarConceptType;
 import mpei.bkm.model.lss.objectspecification.concepttypes.UnionConceptType;
 import mpei.bkm.model.lss.objectspecification.intervalrestrictions.AtomRestriction;
-import mpei.bkm.model.lss.objectspecification.intervalrestrictions.IntervalRestriction;
 import mpei.bkm.model.lss.objectspecification.intervalrestrictions.number.*;
-import mpei.bkm.model.structurescheme.Scheme;
 import mpei.bkm.parsing.structurescheme.SchemeContainer;
-import org.apache.commons.lang.enums.*;
+import org.protege.editor.core.ui.util.UIUtil;
 import org.protege.editor.owl.OWLEditorKit;
 import org.protege.editor.owl.model.event.EventType;
 import org.protege.editor.owl.ui.action.ProtegeOWLAction;
 import org.semanticweb.owlapi.model.*;
 import uk.ac.manchester.cs.owl.owlapi.*;
 
+import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.io.BufferedReader;
 import java.io.File;
@@ -286,38 +284,11 @@ public class BKMMenu extends ProtegeOWLAction {
     }
     public void actionPerformed(ActionEvent arg0) {
         try {
-            Text2SchemeContainerConverter ttt = new Text2SchemeContainerConverter();
-
-            SchemeContainer schemeContainer = ttt.convert("SCHEME 'Учебный процесс':\n" +
-                            "    Студент[ФИО:String, ГодРожд:Integer, Группа].\n" +
-                            "    Группа[Номер:String, Староста:Студент].\n" +
-                            "    Препод[ФИО:String, Должность:String, Стаж:Integer].\n" +
-                            "    Предмет[Назв:String, КоличЧасов:Integer,\n" +
-                            "    ВидЗанятия:{лекция,семинар,лаб_занятие},\n" +
-                            "    Отчет:{экзамен,зачет,зач_и_экз}].\n" +
-                            "    Кафедра[Назв:String, ПрепСостав:Препод(*)].\n" +
-                            "    (Студент СдалЭкзамен Предмет)[Дата:String,Оценка:String, Кому:Препод].\n" +
-                            "    (Студент СдалЗачет Предмет)[Дата:String, Оценка:String,Кому:Препод].\n" +
-                            "    (Препод(Должность=профессор)Читает(<=3,<=1)Предмет(ВидЗанятия=лекция))[Группы:Группа(*)].\n" +
-                            "    (Препод(Должность=ассистент) ВедетЗанятие(1:3,<=1)Предмет(ВидЗанятия=семинар))[Группы:Группа(*)].\n" +
-                            "    (Препод Работает_на -> Кафедра)[ДатаПоступ:Integer].\n" +
-                            "    (1-ый:Предмет Предшест 2-ой:Предмет).\n" +
-                            "END");
-
-            IRI filiIRI = IRI.create(("http://www.mpei.ru/BKM/" +
-                    System.getProperty("user.name")+ "/" +
-                    schemeContainer.getScheme().getName()).replace(" ","_"));
-            OWLOntology owlOntology = getOWLModelManager().createNewOntology(
-                    new OWLOntologyID(filiIRI),
-                    filiIRI.toURI());
-
-            loadIntoOntology(owlOntology, schemeContainer);
-
             //getOWLModelManager().setLoadErrorHandler();
-            File file = UIUtil.openFile(new JDialog(), "Open BKM file", s, new HashSet<String>(Arrays.asList("BKM file (.bkmapi)")));
+            File file = UIUtil.openFile(new JDialog(), "Open BKM file", "Open BKM file", new HashSet<String>(Arrays.asList("bkm")));
             if (file != null) {
                 try {
-                   readBKMFile(file);
+                   translateBKMFile(file);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -326,7 +297,7 @@ public class BKMMenu extends ProtegeOWLAction {
         }
     }
 
-    private void readBKMFile(File file) {
+    private void translateBKMFile(File file) {
         BufferedReader br = null;
         try {
             br = new BufferedReader(new FileReader(file));
@@ -335,9 +306,26 @@ public class BKMMenu extends ProtegeOWLAction {
             while ((line = br.readLine()) != null) {
                 sb.append(line);
             }
+            Text2SchemeContainerConverter ttt = new Text2SchemeContainerConverter();
+
+            SchemeContainer schemeContainer = ttt.convert(sb.toString());
+
+            IRI filiIRI = IRI.create(("http://www.mpei.ru/BKM/" +
+                    System.getProperty("user.name") + "/" +
+                    schemeContainer.getScheme().getName()).replace(" ", "_"));
+            OWLOntology owlOntology = getOWLModelManager().createNewOntology(
+                    new OWLOntologyID(filiIRI),
+                    filiIRI.toURI());
+
+            loadIntoOntology(owlOntology, schemeContainer);
         } catch (IOException e) {
-            // TODO logging
-            e.printStackTrace();
+            JOptionPane.showMessageDialog(new JDialog(), e.getMessage(), "Error when reading BKM file.", JOptionPane.ERROR_MESSAGE);
+        } catch (UnconvertableException e) {
+            JOptionPane.showMessageDialog(new JDialog(), e.getMessage(), "Error when translating BKM file.", JOptionPane.ERROR_MESSAGE);
+        } catch (OWLOntologyCreationException e) {
+            JOptionPane.showMessageDialog(new JDialog(), e.getMessage(), "Error when creating OWL ontology from BKM file.", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(new JDialog(), e.getMessage(), "Unknown error when reading BKM file.", JOptionPane.ERROR_MESSAGE);
         }
 
         /*
