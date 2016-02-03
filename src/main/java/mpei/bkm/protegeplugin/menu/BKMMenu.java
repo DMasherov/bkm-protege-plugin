@@ -79,7 +79,15 @@ public class BKMMenu extends ProtegeOWLAction {
                 OWLObjectProperty right = new OWLObjectPropertyImpl(
                         IRI.create("#" + link.getName() + "_" + rightName)
                 );
-                owlAxioms.add(new OWLDeclarationAxiomImpl(right,Collections.EMPTY_SET));
+                owlAxioms.add(new OWLDeclarationAxiomImpl(right, Collections.EMPTY_SET));
+                owlAxioms.add(new OWLObjectPropertyDomainAxiomImpl(
+                        left,
+                        owlClass,
+                        Collections.EMPTY_SET));
+                owlAxioms.add(new OWLObjectPropertyDomainAxiomImpl(
+                        right,
+                        owlClass,
+                        Collections.EMPTY_SET));
                 linkIntervalRestrictions.add(Arrays.asList(owlClass, right, link.getRestriction().getRight(), rightName));
             }
             for (Attribute attribute : concept.getAttributes()) {
@@ -192,6 +200,9 @@ public class BKMMenu extends ProtegeOWLAction {
             }
         }
         for(Map.Entry<OWLClass,List> e: exactRestrictions.entrySet()) {
+            if (e.getValue().size() < 2) {
+                continue;
+            }
             Set<OWLClassExpression> equiProps = new HashSet<OWLClassExpression>();
             equiProps.add(e.getKey());
             Set<OWLClassExpression> propertyCardinalities = new HashSet<OWLClassExpression>();
@@ -232,13 +243,13 @@ public class BKMMenu extends ProtegeOWLAction {
                 min = ((GTAtomRestriction)atomRestriction).getValue() + 1;
             }
             else if (atomRestriction instanceof GEAtomRestriction) {
-                min = ((GTAtomRestriction)atomRestriction).getValue();
+                min = ((GEAtomRestriction)atomRestriction).getValue();
             }
             else if (atomRestriction instanceof LTAtomRestriction) {
-                max = ((GTAtomRestriction)atomRestriction).getValue() - 1;
+                max = ((LTAtomRestriction)atomRestriction).getValue() - 1;
             }
             else if (atomRestriction instanceof LEAtomRestriction) {
-                max = ((GTAtomRestriction)atomRestriction).getValue() - 1;
+                max = ((LEAtomRestriction)atomRestriction).getValue();
             }
             else if (atomRestriction instanceof EQAtomRestriction) {
                 Integer exact = ((EQAtomRestriction)atomRestriction).getValue();
@@ -277,20 +288,25 @@ public class BKMMenu extends ProtegeOWLAction {
         try {
             Text2SchemeContainerConverter ttt = new Text2SchemeContainerConverter();
 
-            SchemeContainer schemeContainer = ttt.convert("SCHEME Учебный_процесс:\n" +
-                    "    Студент[ФИО:String, ГодРожд:Integer, Группа].\n" +
-                    "    Группа[Номер:String, Староста:Студент].\n" +
-                    "    Препод[ФИО:String, Должность:String, Стаж:Integer].\n" +
-                    "    Предмет[Назв:String, КоличЧасов:Integer,\n" +
-                    "            ВидЗанятия:{лекция,семинар,лаб_занятие},\n" +
-                    "            Отчет:{экзамен,зачет,зач_и_экз}]. " +
-                    "    (Студент СдалЭкзамен Предмет)[Дата:String,Оценка:String, Кому:Препод].\n" +
-                    "    (Студент СдалЗачет(=666,*) Предмет)[Дата:String, Оценка:String, Кому:Препод].\n" +
-                    "END");
+            SchemeContainer schemeContainer = ttt.convert("SCHEME 'Учебный процесс':\n" +
+                            "    Студент[ФИО:String, ГодРожд:Integer, Группа].\n" +
+                            "    Группа[Номер:String, Староста:Студент].\n" +
+                            "    Препод[ФИО:String, Должность:String, Стаж:Integer].\n" +
+                            "    Предмет[Назв:String, КоличЧасов:Integer,\n" +
+                            "    ВидЗанятия:{лекция,семинар,лаб_занятие},\n" +
+                            "    Отчет:{экзамен,зачет,зач_и_экз}].\n" +
+                            "    Кафедра[Назв:String, ПрепСостав:Препод(*)].\n" +
+                            "    (Студент СдалЭкзамен Предмет)[Дата:String,Оценка:String, Кому:Препод].\n" +
+                            "    (Студент СдалЗачет Предмет)[Дата:String, Оценка:String,Кому:Препод].\n" +
+                            "    (Препод(Должность=профессор)Читает(<=3,<=1)Предмет(ВидЗанятия=лекция))[Группы:Группа(*)].\n" +
+                            "    (Препод(Должность=ассистент) ВедетЗанятие(1:3,<=1)Предмет(ВидЗанятия=семинар))[Группы:Группа(*)].\n" +
+                            "    (Препод Работает_на -> Кафедра)[ДатаПоступ:Integer].\n" +
+                            "    (1-ый:Предмет Предшест 2-ой:Предмет).\n" +
+                            "END");
 
-            IRI filiIRI = IRI.create("http://www.mpei.ru/BKM/" +
+            IRI filiIRI = IRI.create(("http://www.mpei.ru/BKM/" +
                     System.getProperty("user.name")+ "/" +
-                    schemeContainer.getScheme().getName());
+                    schemeContainer.getScheme().getName()).replace(" ","_"));
             OWLOntology owlOntology = getOWLModelManager().createNewOntology(
                     new OWLOntologyID(filiIRI),
                     filiIRI.toURI());
@@ -298,14 +314,14 @@ public class BKMMenu extends ProtegeOWLAction {
             loadIntoOntology(owlOntology, schemeContainer);
 
             //getOWLModelManager().setLoadErrorHandler();
-            /*File file = UIUtil.openFile(new JDialog(), "Open BKM file", s, new HashSet<String>(Arrays.asList("BKM file (.bkmapi)")));
+            File file = UIUtil.openFile(new JDialog(), "Open BKM file", s, new HashSet<String>(Arrays.asList("BKM file (.bkmapi)")));
             if (file != null) {
                 try {
-                    readBKMFile(file);
+                   readBKMFile(file);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-            }*/
+            }
         } catch (Exception e) {
         }
     }
