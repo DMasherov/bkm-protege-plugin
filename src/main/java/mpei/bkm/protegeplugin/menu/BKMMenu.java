@@ -10,6 +10,7 @@ import mpei.bkm.model.lss.objectspecification.concept.Concept;
 import mpei.bkm.model.lss.objectspecification.concepttypes.BKMClassType;
 import mpei.bkm.model.lss.objectspecification.concepttypes.ConceptType;
 import mpei.bkm.model.lss.objectspecification.concepttypes.StarConceptType;
+import mpei.bkm.model.lss.objectspecification.concepttypes.UnionConceptType;
 import mpei.bkm.model.lss.objectspecification.intervalrestrictions.AtomRestriction;
 import mpei.bkm.model.lss.objectspecification.intervalrestrictions.IntervalRestriction;
 import mpei.bkm.model.lss.objectspecification.intervalrestrictions.number.*;
@@ -54,6 +55,7 @@ public class BKMMenu extends ProtegeOWLAction {
         List<OWLClass> owlClassList = new ArrayList<OWLClass>();
         List<OWLAxiom> owlAxioms = new ArrayList<OWLAxiom>();
         Map<OWLObjectProperty,String> classRangesToAdd = new HashMap<OWLObjectProperty, String>();
+        Map<OWLObjectProperty,List<String>> unionClasses = new HashMap<OWLObjectProperty, List<String>>();
         Map<String, OWLClass> nameClassMapping = new HashMap<String, OWLClass>();
         Map<OWLClass, List> exactRestrictions = new HashMap<OWLClass,List>();
         Set<List> linkIntervalRestrictions = new HashSet<List>();
@@ -125,6 +127,24 @@ public class BKMMenu extends ProtegeOWLAction {
                                 new OWLDataOneOfImpl(enums),
                                 Collections.EMPTY_SET));
                     }
+                    if (attribute.getType() instanceof UnionDataType) {
+                        DataType leftDataType = ((UnionDataType) attribute.getType()).getLeft();
+                        DataType rightDataType = ((UnionDataType) attribute.getType()).getRight();
+                        if (leftDataType instanceof PrimitiveDataType && rightDataType instanceof PrimitiveDataType) {
+                            PrimitiveDataType.PRIMITIVEDATATYPE left = ((PrimitiveDataType) leftDataType).getType();
+                            PrimitiveDataType.PRIMITIVEDATATYPE right = ((PrimitiveDataType) rightDataType).getType();
+
+                            OWLDataUnionOf owlDataUnionOf = new OWLDataUnionOfImpl(
+                                    new HashSet<OWLDataRange>(Arrays.asList(
+                                            new OWLDatatypeImpl(bkmPrimitiveMap.get(left)),
+                                            new OWLDatatypeImpl(bkmPrimitiveMap.get(right)))
+                                    ));
+                            owlAxioms.add(new OWLDataPropertyRangeAxiomImpl(
+                                    owlProperty,
+                                    owlDataUnionOf,
+                                    Collections.EMPTY_SET));
+                        }
+                    }
                 }
                 if (attribute.getType() instanceof ConceptType) {
                     OWLObjectProperty owlProperty = new OWLObjectPropertyImpl(
@@ -140,6 +160,16 @@ public class BKMMenu extends ProtegeOWLAction {
                     if (attribute.getType() instanceof BKMClassType) {
                         classRangesToAdd.put(owlProperty, ((BKMClassType) attribute.getType()).getBKMClass().getName());
                         exactRestrictions.get(owlClass).addAll(Arrays.asList(owlProperty, ((BKMClassType) attribute.getType()).getBKMClass().getName()));
+                    }
+                    if (attribute.getType() instanceof UnionConceptType) {
+                        ConceptType leftConceptType = ((UnionConceptType) attribute.getType()).getLeft();
+                        ConceptType rightConceptType = ((UnionConceptType) attribute.getType()).getRight();
+                        if (leftConceptType instanceof BKMClassType && rightConceptType instanceof BKMClassType) {
+                            unionClasses.put(owlProperty, Arrays.asList(
+                                            ((BKMClassType) leftConceptType).getBKMClass().getName(),
+                                            ((BKMClassType) rightConceptType).getBKMClass().getName())
+                            );
+                        }
                     }
                 }
             }
@@ -224,6 +254,18 @@ public class BKMMenu extends ProtegeOWLAction {
                 equiProps.addAll(propertyCardinalities);
                 owlAxioms.add(new OWLEquivalentClassesAxiomImpl(equiProps, Collections.EMPTY_SET));
             }
+        }
+        for (Map.Entry<OWLObjectProperty, List<String>> e : unionClasses.entrySet()) {
+            Set<OWLClass> unionOfOWLClasses = new HashSet<OWLClass>();
+            for (String bkmClassName : e.getValue()) {
+                unionOfOWLClasses.add(nameClassMapping.get(bkmClassName));
+            }
+            OWLObjectUnionOf owlObjectUnionOf = new OWLObjectUnionOfImpl(unionOfOWLClasses);
+            owlAxioms.add(new OWLObjectPropertyRangeAxiomImpl(
+                    (OWLObjectPropertyExpression) e.getKey(),
+                    owlObjectUnionOf,
+                    Collections.EMPTY_SET
+            ));
         }
         for (OWLAxiom owlAxiom : owlAxioms) {
             getOWLModelManager().applyChange(new AddAxiom(owlOntology,owlAxiom));
