@@ -57,7 +57,7 @@ public class BKMMenu extends ProtegeOWLAction {
         Map<String, OWLClass> nameClassMapping = new HashMap<String, OWLClass>();
         Map<OWLClass, List> exactRestrictions = new HashMap<OWLClass,List>();
         Set<List> linkIntervalRestrictions = new HashSet<List>();
-        for (Concept concept : schemeContainer.getScheme().getConceptList()) {
+        for (Concept concept : schemeContainer.getScheme().getConceptSet()) {
             OWLClass owlClass = new OWLClassImpl(IRI.create("#" + concept.getName()));
             nameClassMapping.put(concept.getName(), owlClass);
             owlAxioms.add(new OWLDeclarationAxiomImpl(
@@ -190,14 +190,14 @@ public class BKMMenu extends ProtegeOWLAction {
         }
         for (Map.Entry<OWLObjectProperty, String> e : classRangesToAdd.entrySet()) {
             OWLClass owlClass = nameClassMapping.get(e.getValue());
-            if (owlClass.getIRI().getFragment().equals(e.getValue())) {
+            if (owlClass != null && owlClass.getIRI().getFragment().equals(e.getValue())) {
                 owlAxioms.add(new OWLObjectPropertyRangeAxiomImpl(
                         e.getKey(),
                         owlClass,
                         Collections.EMPTY_SET));
             }
         }
-        for(Map.Entry<OWLClass,List> e: exactRestrictions.entrySet()) {
+        E: for(Map.Entry<OWLClass,List> e: exactRestrictions.entrySet()) {
             if (e.getValue().size() < 2) {
                 continue;
             }
@@ -210,6 +210,9 @@ public class BKMMenu extends ProtegeOWLAction {
                 if (e.getValue().get(i+1) instanceof String) {
                     OWLObjectProperty ope = (OWLObjectProperty) e.getValue().get(i);
                     OWLClass owlClass = nameClassMapping.get(e.getValue().get(i+1));
+                    if (owlClass == null) {
+                        continue E;
+                    }
                     propertyCardinalities.add(new OWLObjectExactCardinalityImpl(ope, 1, owlClass));
                 }
                 else {
@@ -222,6 +225,8 @@ public class BKMMenu extends ProtegeOWLAction {
             owlAxioms.add(new OWLEquivalentClassesAxiomImpl(equiProps, Collections.EMPTY_SET));
         }
         for(List e: linkIntervalRestrictions) {
+            if (e.size() < 4)
+                continue;
             // 0: owl class (BKM link)
             // 1: property
             // 2: BKM Interval restriction
@@ -230,8 +235,10 @@ public class BKMMenu extends ProtegeOWLAction {
             equiProps.add((OWLClassExpression) e.get(0));
             Set<OWLClassExpression> propertyCardinalities = new HashSet<OWLClassExpression>();
             OWLObjectProperty ope = (OWLObjectProperty) e.get(1);
-            AtomRestriction atomRestriction = (AtomRestriction) e.get(2);
             OWLClass owlClass = nameClassMapping.get(e.get(3));
+            if (owlClass == null)
+                continue;
+            AtomRestriction atomRestriction = (AtomRestriction) e.get(2);
             Integer min = null, max = null;
             if (atomRestriction instanceof IntervalAtomRestriction) {
                 min = ((IntervalAtomRestriction)atomRestriction).getFrom();
@@ -264,10 +271,13 @@ public class BKMMenu extends ProtegeOWLAction {
                 owlAxioms.add(new OWLEquivalentClassesAxiomImpl(equiProps, Collections.EMPTY_SET));
             }
         }
-        for (Map.Entry<OWLObjectProperty, List<String>> e : unionClasses.entrySet()) {
+        U: for (Map.Entry<OWLObjectProperty, List<String>> e : unionClasses.entrySet()) {
             Set<OWLClass> unionOfOWLClasses = new HashSet<OWLClass>();
             for (String bkmClassName : e.getValue()) {
-                unionOfOWLClasses.add(nameClassMapping.get(bkmClassName));
+                OWLClass owlClass = nameClassMapping.get(bkmClassName);
+                if (owlClass == null)
+                    continue U;
+                unionOfOWLClasses.add(owlClass);
             }
             OWLObjectUnionOf owlObjectUnionOf = new OWLObjectUnionOfImpl(unionOfOWLClasses);
             owlAxioms.add(new OWLObjectPropertyRangeAxiomImpl(
