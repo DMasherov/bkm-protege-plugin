@@ -316,10 +316,37 @@ public class BKMMenu extends ProtegeOWLAction {
             while ((line = br.readLine()) != null) {
                 sb.append(line);
             }
-            Text2SchemeContainerConverter ttt = new Text2SchemeContainerConverter();
+            Text2SchemeContainerConverter converter = new Text2SchemeContainerConverter();
 
-            SchemeContainer schemeContainer = ttt.convert(sb.toString());
-
+            SchemeContainer schemeContainer = converter.convert(sb.toString());
+            String errors = null;
+            String incompleteness = null;
+            if (converter.getErrors().size() > 0) {
+                errors = "Found errors:\n" + String.join("\n", converter.getErrors());
+            }
+            if (converter.getIncompleteness().size() > 0) {
+                incompleteness = "Found incompleteness:\n" + String.join("\n", converter.getIncompleteness());
+            }
+            if (errors != null || incompleteness != null) {
+                if (errors == null) {
+                    errors = incompleteness;
+                }
+                else if (incompleteness != null) {
+                    errors += incompleteness;
+                }
+                errors += "\nTry to convert to OWL anyway?";
+                String[] options = {"Yes", "No"};
+                int continueAnswer = JOptionPane.showOptionDialog(new JDialog(), errors, "Errors and incompleteness",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE,
+                        null,
+                        options,
+                        options[1]
+                );
+                if (continueAnswer == JOptionPane.NO_OPTION) {
+                    return;
+                }
+            }
             IRI filiIRI = IRI.create(("http://www.mpei.ru/BKM/" +
                     System.getProperty("user.name") + "/" +
                     schemeContainer.getScheme().getName()).replace(" ", "_"));
@@ -341,7 +368,7 @@ public class BKMMenu extends ProtegeOWLAction {
         } catch (OWLOntologyCreationException e) {
             JOptionPane.showMessageDialog(new JDialog(), e.getMessage(), "Error when creating OWL ontology from BKM file.", JOptionPane.ERROR_MESSAGE);
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(new JDialog(), e.getMessage(), "Unknown error when reading BKM file.", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(new JDialog(), "Unknown error when reading BKM file.", "Error when reading BKM file.", JOptionPane.ERROR_MESSAGE);
         }
 
         /*
