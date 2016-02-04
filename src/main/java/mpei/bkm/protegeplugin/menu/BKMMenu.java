@@ -9,6 +9,7 @@ import mpei.bkm.model.lss.objectspecification.concept.BinaryLink;
 import mpei.bkm.model.lss.objectspecification.concept.Concept;
 import mpei.bkm.model.lss.objectspecification.concepttypes.BKMClassType;
 import mpei.bkm.model.lss.objectspecification.concepttypes.ConceptType;
+import mpei.bkm.model.lss.objectspecification.concepttypes.StarConceptType;
 import mpei.bkm.model.lss.objectspecification.concepttypes.UnionConceptType;
 import mpei.bkm.model.lss.objectspecification.intervalrestrictions.AtomRestriction;
 import mpei.bkm.model.lss.objectspecification.intervalrestrictions.number.*;
@@ -166,6 +167,10 @@ public class BKMMenu extends ProtegeOWLAction {
                     if (attribute.getType() instanceof BKMClassType) {
                         classRangesToAdd.put(owlProperty, ((BKMClassType) attribute.getType()).getBKMClass().getName());
                         exactRestrictions.get(owlClass).addAll(Arrays.asList(owlProperty, ((BKMClassType) attribute.getType()).getBKMClass().getName()));
+                    }
+                    if (attribute.getType() instanceof StarConceptType &&
+                            ((StarConceptType)attribute.getType()).getType() instanceof BKMClassType) {
+                        classRangesToAdd.put(owlProperty, ((BKMClassType) ((StarConceptType) attribute.getType()).getType()).getBKMClass().getName());
                     }
                     if (attribute.getType() instanceof UnionConceptType) {
                         ConceptType leftConceptType = ((UnionConceptType) attribute.getType()).getLeft();
