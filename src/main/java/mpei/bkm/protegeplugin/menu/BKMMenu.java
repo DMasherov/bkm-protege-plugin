@@ -312,6 +312,18 @@ public class BKMMenu extends ProtegeOWLAction {
         }
     }
 
+    private String join(CharSequence seq, List<String> list) {
+        StringBuffer sb = new StringBuffer();
+        boolean first = false;
+        for (String s : list) {
+            if (!first) {
+                sb.append(seq);
+                first = true;
+            }
+            sb.append(s);
+        }
+        return sb.toString();
+    }
     private void translateBKMFile(File file) {
         BufferedReader br = null;
         try {
@@ -327,10 +339,10 @@ public class BKMMenu extends ProtegeOWLAction {
             String errors = null;
             String incompleteness = null;
             if (converter.getErrors().size() > 0) {
-                errors = "Found errors:\n" + String.join("\n", converter.getErrors());
+                errors = "Found errors:\n" + join("\n", converter.getErrors());
             }
             if (converter.getIncompleteness().size() > 0) {
-                incompleteness = "Found incompleteness:\n" + String.join("\n", converter.getIncompleteness());
+                incompleteness = "Found incompleteness:\n" + join("\n", converter.getIncompleteness());
             }
             if (errors != null || incompleteness != null) {
                 if (errors == null) {
