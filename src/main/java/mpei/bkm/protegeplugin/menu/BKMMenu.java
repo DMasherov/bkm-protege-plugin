@@ -319,7 +319,7 @@ public class BKMMenu extends ProtegeOWLAction {
             String line;
             StringBuffer sb = new StringBuffer();
             while ((line = br.readLine()) != null) {
-                sb.append(line);
+                sb.append(line).append('\n');
             }
             Text2SchemeContainerConverter converter = new Text2SchemeContainerConverter();
 
@@ -337,7 +337,7 @@ public class BKMMenu extends ProtegeOWLAction {
                     errors = incompleteness;
                 }
                 else if (incompleteness != null) {
-                    errors += incompleteness;
+                    errors += "\n" + incompleteness;
                 }
                 errors += "\nTry to convert to OWL anyway?";
                 String[] options = {"Yes", "No"};
